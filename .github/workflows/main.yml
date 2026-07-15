@@ -1,4 +1,4 @@
-name: Build APK and EXE
+name: Build Android APK
 
 on:
   push:
@@ -6,11 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  # --- СБОРКА ПОД ANDROID ---
   android-build:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -20,45 +25,23 @@ jobs:
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y scons build-essential libsqlite3-dev libbz2-dev libreadline-dev libssl-dev libgdbm-dev libffi-dev liblzma-dev tk-dev texinfo openjdk-17-jdk autoconf libtool automake pkg-config
+        sudo apt-get install -y scons build-essential libsqlite3-dev libbz2-dev libreadline-dev libssl-dev libgdbm-dev libffi-dev liblzma-dev tk-dev texinfo autoconf libtool automake pkg-config
 
     - name: Install Buildozer and Dependencies
       run: |
-        pip install --upgrade buildozer cython kivy plyer
+        pip install --upgrade buildozer cython Kivy plyer
+
+    - name: Configure buildozer.spec
+      run: |
+        # Автоматически включаем согласие с лицензиями Android SDK в самом файле конфигурации
+        sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
 
     - name: Build APK with Buildozer
       run: |
-        # Автоматически соглашаемся со всеми лицензиями Android SDK
-        yes y | buildozer android debug
+        buildozer android debug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Android-APK
         path: bin/*.apk
-
-  # --- СБОРКА ПОД WINDOWS (.EXE) ---
-  windows-build:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install kivy plyer pyinstaller
-
-    - name: Build EXE with PyInstaller
-      run: |
-        pyinstaller --onefile --windowed --name="WiFi_Clipboard" main.py
-
-    - name: Upload EXE Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Windows-EXE
-        path: dist/WiFi_Clipboard.exe
