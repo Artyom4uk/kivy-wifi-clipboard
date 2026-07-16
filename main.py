@@ -9,8 +9,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.properties import StringProperty, ListProperty
 from kivy.core.clipboard import Clipboard
-from kivy.uix.popup import Popup
-from kivy.uix.filechooser import FileChooserIconView
+from kivy.core.window import Window
+from plyer import filechooser as file_chooser
 from kivy.clock import Clock
 
 if getattr(sys, 'frozen', False):
@@ -23,7 +23,6 @@ class HistoryScreen(Screen):
     pass
 
 class FileItem(BoxLayout):
-    """Плиточка выбранного файла с динамической иконкой"""
     file_path = StringProperty("")
     file_name = StringProperty("")
     icon_source = StringProperty("")
@@ -31,9 +30,11 @@ class FileItem(BoxLayout):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        ext = os.path.splitext(self.file_path).lower()
+        # Безопасно очищаем путь и берем расширение
+        clean_path = str(self.file_path).strip("()',\"")
+        ext = os.path.splitext(clean_path).lower()
         if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
-            self.icon_source = self.file_path
+            self.icon_source = clean_path
             self.icon_text = ""
         else:
             self.icon_source = ""
@@ -50,16 +51,16 @@ class FileItem(BoxLayout):
         self.parent.remove_widget(self)
 
 class HistoryItem(BoxLayout):
-    """Элемент в окне 'ПРИНЯТЬ'"""
     item_text = StringProperty("")
     is_file = False
 
     def action_press(self):
-        if self.is_file and os.path.exists(self.item_text):
-            if sys.platform == 'win32': os.startfile(self.item_text)
-            else: webbrowser.open(self.item_text)
+        clean_text = str(self.item_text).strip()
+        if self.is_file and os.path.exists(clean_text):
+            if sys.platform == 'win32': os.startfile(clean_text)
+            else: webbrowser.open(clean_text)
         else:
-            Clipboard.copy(self.item_text)
+            Clipboard.copy(clean_text)
             App.get_running_app().set_status("Текст скопирован!")
 
 class MainApp(App):
@@ -69,7 +70,11 @@ class MainApp(App):
 
     def build(self):
         self.title = "Wi-Fi Обменник"
-        # Фоновый сервер для прослушивания Wi-Fi
+        
+        # ВОЗВРАТ CTRL + ENTER: Привязываем отслеживание клавиатуры
+        Window.bind(on_key_down=self.on_keyboard_down)
+        
+        # Фоновый сервер
         threading.Thread(target=self.start_network_server, daemon=True).start()
         
         sm = ScreenManager()
@@ -77,10 +82,16 @@ class MainApp(App):
         sm.add_widget(HistoryScreen(name='history'))
         return sm
 
+    def on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        """Перехват Ctrl + Enter для отправки"""
+        if key == 13 and 'ctrl' in modifiers:
+            self.send_data()
+            return True
+
     def check_for_links(self, text):
         urls = re.findall(r'(https?://\S+)', text)
         if urls:
-            self.detected_link = urls[0]
+            self.detected_link = urls
             self.root.get_screen('main').ids.link_button.opacity = 1
             self.root.get_screen('main').ids.link_button.disabled = False
         else:
@@ -96,53 +107,36 @@ class MainApp(App):
         self.root.get_screen('main').ids.input_field.text = Clipboard.paste()
 
     def choose_file(self):
-        """Стабильный встроенный проводник Kivy без Plyer"""
-        content = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        # Получаем стартовый путь (Документы или память телефона)
-        start_path = os.path.expanduser('~')
-        if sys.platform != 'win32':
-            start_path = '/sdcard' if os.path.exists('/sdcard') else '/'
-            
-        file_chooser = FileChooserIconView(path=start_path, filters=['*'])
-        content.add_widget(file_chooser)
-        
-        # Кнопка подтверждения выбора
-        btn_layout = BoxLayout(size_hint_y=None, height='45dp', spacing=10)
-        select_btn = Button(text="Выбрать", background_color=(0.2, 0.7, 0.4, 1))
-        cancel_btn = Button(text="Отмена", background_color=(0.8, 0.2, 0.2, 1))
-        btn_layout.add_widget(cancel_btn)
-        btn_layout.add_widget(select_btn)
-        content.add_widget(btn_layout)
-        
-        popup = Popup(title="Выберите файлы для отправки", content=content, size_hint=(0.9, 0.9))
-        
-        def on_select(instance):
-            if file_chooser.selection:
-                for path in file_chooser.selection:
-                    if path not in self.selected_files:
-                        self.selected_files.append(path)
-                        name = os.path.basename(path)
-                        item = FileItem(file_path=path, file_name=name)
-                        self.root.get_screen('main').ids.files_scroll_container.add_widget(item)
-                self.set_status(f"Добавлено файлов: {len(self.selected_files)}")
-            popup.dismiss()
-            
-        select_btn.bind(on_release=on_select)
-        cancel_btn.bind(on_release=popup.dismiss)
-        popup.open()
+        """Системный проводник"""
+        try:
+            file_chooser.open_file(on_selection=self.on_file_selected, multiple=True)
+        except Exception as e:
+            self.set_status(f"Ошибка проводника: {str(e)}")
+
+    def on_file_selected(self, selection):
+        if selection:
+            if isinstance(selection, (list, tuple)):
+                paths = [str(p).strip("()',\"") for p in selection]
+            else:
+                paths = [str(selection).strip("()',\"")]
+
+            for path in paths:
+                if path and path not in self.selected_files:
+                    self.selected_files.append(path)
+                    name = os.path.basename(path)
+                    item = FileItem(file_path=path, file_name=name)
+                    self.root.get_screen('main').ids.files_scroll_container.add_widget(item)
 
     def send_data(self):
-        text = self.root.get_screen('main').ids.input_field.text.strip()
+        text = str(self.root.get_screen('main').ids.input_field.text).strip()
         files = list(self.selected_files)
 
         if not text and not files:
             self.set_status("Нечего отправлять!")
             return
 
-        # Изолированный поток для отправки (не дает Android упасть)
         threading.Thread(target=self.network_send_worker, args=(text, files), daemon=True).start()
 
-        # Очистка экрана после отправки
         self.root.get_screen('main').ids.input_field.text = ""
         self.selected_files.clear()
         self.root.get_screen('main').ids.files_scroll_container.clear_widgets()
@@ -153,6 +147,7 @@ class MainApp(App):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.settimeout(2.0)  # Безопасный тайм-аут, чтобы поток не зависал
             
             if text:
                 payload = f"TEXT:{text}".encode('utf-8')
@@ -181,16 +176,14 @@ class MainApp(App):
             try:
                 data, addr = udp_server.recvfrom(1024 * 1024 * 50)
                 
-                # Игнорируем пакеты от самих себя
                 try:
-                    hostname = socket.gethostname()
-                    my_ips = socket.gethostbyname_ex(hostname)[2]
+                    my_ips = socket.gethostbyname_ex(socket.gethostname())[2]
                 except:
                     my_ips = []
                 my_ips.extend(['127.0.0.1', 'localhost'])
                 
                 if addr[0] in my_ips:
-                    continue
+                    continue  # Игнорируем эхо от себя
 
                 if data.startswith(b"TEXT:"):
                     text_msg = data[5:].decode('utf-8')
@@ -202,6 +195,7 @@ class MainApp(App):
                     
                     save_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
                     if sys.platform != 'win32':
+                        # Универсальный безопасный путь для Загрузок на Android
                         save_dir = '/sdcard/Download' if os.path.exists('/sdcard') else './'
                     if not os.path.exists(save_dir): os.makedirs(save_dir)
                     
@@ -216,16 +210,14 @@ class MainApp(App):
     def add_to_history(self, content, is_file):
         self.received_items.append({"text": content, "is_file": is_file})
         disp_text = f"📁 Файл: {os.path.basename(content)}" if is_file else f"💬 Текст: {content}"
-        item_widget = HistoryItem(item_text=content, is_file=is_file)
+        item_widget = HistoryItem(item_text=content)
+        item_widget.is_file = is_file
         item_widget.ids.display_label.text = disp_text
         self.root.get_screen('history').ids.history_container.add_widget(item_widget)
         self.set_status("Приняты новые данные!")
 
     def set_status(self, text):
         self.root.get_screen('main').ids.status_label.text = text
-
-# Дополнительный импорт кнопки для проводника Kivy
-from kivy.uix.button import Button
 
 if __name__ == "__main__":
     MainApp().run()
