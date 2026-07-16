@@ -83,8 +83,6 @@
         background_color: 0.2, 0.6, 0.4, 1
         on_press: root.action_press()
 
-
-# --- ЭКРАН 1: ГЛАВНЫЙ ---
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
@@ -102,7 +100,6 @@
                 halign: 'left'
                 text_size: self.size
 
-            # Кнопка перехода в окно принятых файлов
             Button:
                 text: "📥 ПРИНЯТЬ (" + str(len(app.received_items)) + ")"
                 size_hint_x: None
@@ -174,8 +171,6 @@
                 background_color: 0.2, 0.7, 0.4, 1
                 on_press: app.send_data()
 
-
-# --- ЭКРАН 2: ИСТОРИЯ ПРИНЯТОГО ---
 <HistoryScreen>:
     BoxLayout:
         orientation: 'vertical'
@@ -199,7 +194,6 @@
                 halign: 'left'
                 text_size: self.size
 
-        # Список принятых элементов с прокруткой
         ScrollView:
             BoxLayout:
                 id: history_container
