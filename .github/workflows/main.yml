@@ -31,10 +31,15 @@ jobs:
       run: |
         pip install --upgrade buildozer cython Kivy plyer
 
-    - name: Configure buildozer.spec
+    - name: Configure buildozer.spec and Permissions
       run: |
-        # Автоматически включаем согласие с лицензиями Android SDK в самом файле конфигурации
+        # Включаем лицензии SDK
         sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
+        # Выставляем Android API 34
+        sed -i 's/android.api = 31/android.api = 34/g' buildozer.spec
+        sed -i 's/android.api = 33/android.api = 34/g' buildozer.spec
+        # ТРЕБУЕМЫЕ РАЗРЕШЕНИЯ: Добавляем права на Сеть и Wi-Fi в манифест Android приложения
+        sed -i 's/android.permissions =/android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE/g' buildozer.spec
 
     - name: Build APK with Buildozer
       run: |
