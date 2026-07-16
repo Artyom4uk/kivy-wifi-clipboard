@@ -9,9 +9,9 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.properties import StringProperty, ListProperty
 from kivy.core.clipboard import Clipboard
-from kivy.core.window import Window
 from plyer import filechooser as file_chooser
 from kivy.clock import Clock
+from kivy.core.window import Window
 
 if getattr(sys, 'frozen', False):
     os.chdir(sys._MEIPASS)
@@ -30,7 +30,7 @@ class FileItem(BoxLayout):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Безопасно очищаем путь и берем расширение
+        # Жестко переводим путь в чистую строку
         clean_path = str(self.file_path).strip("()',\"")
         ext = os.path.splitext(clean_path).lower()
         if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
@@ -70,11 +70,21 @@ class MainApp(App):
 
     def build(self):
         self.title = "Wi-Fi Обменник"
-        
-        # ВОЗВРАТ CTRL + ENTER: Привязываем отслеживание клавиатуры
         Window.bind(on_key_down=self.on_keyboard_down)
         
-        # Фоновый сервер
+        # ЗАПРОС РАЗРЕШЕНИЙ ДЛЯ ANDROID СТРОГО ПРИ СТАРТЕ
+        if sys.platform == 'android':
+            try:
+                from android.permissions import request_permissions, Permission
+                request_permissions([
+                    Permission.INTERNET, 
+                    Permission.ACCESS_NETWORK_STATE,
+                    Permission.READ_EXTERNAL_STORAGE,
+                    Permission.WRITE_EXTERNAL_STORAGE
+                ])
+            except Exception as e:
+                print(f"Ошибка запроса прав: {e}")
+
         threading.Thread(target=self.start_network_server, daemon=True).start()
         
         sm = ScreenManager()
@@ -83,7 +93,6 @@ class MainApp(App):
         return sm
 
     def on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
-        """Перехват Ctrl + Enter для отправки"""
         if key == 13 and 'ctrl' in modifiers:
             self.send_data()
             return True
@@ -107,13 +116,13 @@ class MainApp(App):
         self.root.get_screen('main').ids.input_field.text = Clipboard.paste()
 
     def choose_file(self):
-        """Системный проводник"""
         try:
             file_chooser.open_file(on_selection=self.on_file_selected, multiple=True)
         except Exception as e:
             self.set_status(f"Ошибка проводника: {str(e)}")
 
     def on_file_selected(self, selection):
+        """Исправление кортежей Windows"""
         if selection:
             if isinstance(selection, (list, tuple)):
                 paths = [str(p).strip("()',\"") for p in selection]
@@ -147,16 +156,16 @@ class MainApp(App):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.settimeout(2.0)  # Безопасный тайм-аут, чтобы поток не зависал
             
             if text:
                 payload = f"TEXT:{text}".encode('utf-8')
                 s.sendto(payload, ('255.255.255.255', 55555))
             
             for f_path in files:
-                if os.path.exists(f_path):
-                    f_name = os.path.basename(f_path)
-                    with open(f_path, 'rb') as f:
+                clean_path = str(f_path).strip("()',\"")
+                if os.path.exists(clean_path):
+                    f_name = os.path.basename(clean_path)
+                    with open(clean_path, 'rb') as f:
                         file_data = f.read()
                     payload = b"FILE:" + f_name.encode('utf-8') + b":" + file_data
                     s.sendto(payload, ('255.255.255.255', 55555))
@@ -177,13 +186,15 @@ class MainApp(App):
                 data, addr = udp_server.recvfrom(1024 * 1024 * 50)
                 
                 try:
-                    my_ips = socket.gethostbyname_ex(socket.gethostname())[2]
+                    hostname = socket.gethostname()
+                    my_ips = socket.gethostbyname_ex(hostname)[2]
                 except:
                     my_ips = []
                 my_ips.extend(['127.0.0.1', 'localhost'])
                 
+                # Фильтруем ТОЛЬКО по IP адресу отправителя
                 if addr[0] in my_ips:
-                    continue  # Игнорируем эхо от себя
+                    continue
 
                 if data.startswith(b"TEXT:"):
                     text_msg = data[5:].decode('utf-8')
@@ -195,7 +206,6 @@ class MainApp(App):
                     
                     save_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
                     if sys.platform != 'win32':
-                        # Универсальный безопасный путь для Загрузок на Android
                         save_dir = '/sdcard/Download' if os.path.exists('/sdcard') else './'
                     if not os.path.exists(save_dir): os.makedirs(save_dir)
                     
@@ -209,8 +219,8 @@ class MainApp(App):
 
     def add_to_history(self, content, is_file):
         self.received_items.append({"text": content, "is_file": is_file})
-        disp_text = f"📁 Файл: {os.path.basename(content)}" if is_file else f"💬 Текст: {content}"
-        item_widget = HistoryItem(item_text=content)
+        disp_text = f"📁 Файл: {os.path.basename(str(content))}" if is_file else f"💬 Текст: {content}"
+        item_widget = HistoryItem(item_text=str(content))
         item_widget.is_file = is_file
         item_widget.ids.display_label.text = disp_text
         self.root.get_screen('history').ids.history_container.add_widget(item_widget)
