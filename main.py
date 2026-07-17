@@ -30,11 +30,14 @@ class FileItem(BoxLayout):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Жестко переводим путь в чистую строку
-        clean_path = str(self.file_path).strip("()',\"")
-        ext = os.path.splitext(clean_path).lower()
+        # ЖЕСТКАЯ ПРОВЕРКА: Превращаем путь в гарантированную строку текста
+        path_str = str(self.file_path).strip("()',\"[]")
+        
+        # Теперь безопасно берем расширение, так как path_str - это точно текст!
+        ext = os.path.splitext(path_str)[1].lower()
+        
         if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
-            self.icon_source = clean_path
+            self.icon_source = path_str
             self.icon_text = ""
         else:
             self.icon_source = ""
@@ -55,7 +58,7 @@ class HistoryItem(BoxLayout):
     is_file = False
 
     def action_press(self):
-        clean_text = str(self.item_text).strip()
+        clean_text = str(self.item_text).strip("()',\"[]")
         if self.is_file and os.path.exists(clean_text):
             if sys.platform == 'win32': os.startfile(clean_text)
             else: webbrowser.open(clean_text)
@@ -72,7 +75,6 @@ class MainApp(App):
         self.title = "Wi-Fi Обменник"
         Window.bind(on_key_down=self.on_keyboard_down)
         
-        # ЗАПРОС РАЗРЕШЕНИЙ ДЛЯ ANDROID СТРОГО ПРИ СТАРТЕ
         if sys.platform == 'android':
             try:
                 from android.permissions import request_permissions, Permission
@@ -83,7 +85,7 @@ class MainApp(App):
                     Permission.WRITE_EXTERNAL_STORAGE
                 ])
             except Exception as e:
-                print(f"Ошибка запроса прав: {e}")
+                print(f"Ошибка прав: {e}")
 
         threading.Thread(target=self.start_network_server, daemon=True).start()
         
@@ -122,17 +124,19 @@ class MainApp(App):
             self.set_status(f"Ошибка проводника: {str(e)}")
 
     def on_file_selected(self, selection):
-        """Исправление кортежей Windows"""
+        """Полная очистка любых кортежей и списков от проводников"""
         if selection:
+            # Если прилетел список или кортеж, разбираем его на отдельные строки путей
             if isinstance(selection, (list, tuple)):
-                paths = [str(p).strip("()',\"") for p in selection]
+                paths = [str(p).strip("()',\"[]") for p in selection]
             else:
-                paths = [str(selection).strip("()',\"")]
+                paths = [str(selection).strip("()',\"[]")]
 
             for path in paths:
                 if path and path not in self.selected_files:
                     self.selected_files.append(path)
                     name = os.path.basename(path)
+                    # Передаем в FileItem уже гарантированно чистую строку текста пути
                     item = FileItem(file_path=path, file_name=name)
                     self.root.get_screen('main').ids.files_scroll_container.add_widget(item)
 
@@ -162,7 +166,7 @@ class MainApp(App):
                 s.sendto(payload, ('255.255.255.255', 55555))
             
             for f_path in files:
-                clean_path = str(f_path).strip("()',\"")
+                clean_path = str(f_path).strip("()',\"[]")
                 if os.path.exists(clean_path):
                     f_name = os.path.basename(clean_path)
                     with open(clean_path, 'rb') as f:
@@ -192,7 +196,6 @@ class MainApp(App):
                     my_ips = []
                 my_ips.extend(['127.0.0.1', 'localhost'])
                 
-                # Фильтруем ТОЛЬКО по IP адресу отправителя
                 if addr[0] in my_ips:
                     continue
 
