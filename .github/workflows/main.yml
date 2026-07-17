@@ -50,12 +50,11 @@ jobs:
         sed -i 's/android.api = 31/android.api = 34/g' buildozer.spec
         sed -i 's/android.api = 33/android.api = 34/g' buildozer.spec
         sed -i 's/android.permissions =/android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE/g' buildozer.spec
-        
-        buildozer android clean
 
     - name: Build APK with Buildozer
       run: |
         buildozer android debug
+
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
