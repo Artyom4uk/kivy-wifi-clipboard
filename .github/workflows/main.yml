@@ -29,15 +29,25 @@ jobs:
 
     - name: Install Buildozer and Dependencies
       run: |
-        pip install --upgrade buildozer cython Kivy plyer
+        pip install --upgrade buildozer cython Kivy
 
-    - name: Configure buildozer.spec
+    - name: Prepare Files for Android Build
+      run: |
+        # Подменяем файлы, чтобы Билдозер собрал именно мобильную версию
+        mv main_android.py main.py
+        mv main_android.kv main.kv
+        
+        # Генерируем свежий чистый конфигурационный файл
+        buildozer init
+
+    - name: Configure buildozer.spec and Permissions
       run: |
         sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
         sed -i 's/android.api = 31/android.api = 34/g' buildozer.spec
         sed -i 's/android.api = 33/android.api = 34/g' buildozer.spec
-        # Официально прописываем права в Манифест APK-файла:
         sed -i 's/android.permissions =/android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE/g' buildozer.spec
+        
+        buildozer android clean
 
     - name: Build APK with Buildozer
       run: |
