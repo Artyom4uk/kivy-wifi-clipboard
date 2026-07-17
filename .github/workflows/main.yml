@@ -37,8 +37,12 @@ jobs:
         mv main_android.py main.py
         mv main_android.kv main.kv
         
+        # ПРИНУДИТЕЛЬНО УДАЛЯЕМ СТАРЫЙ КОНФИГ ИЗ РЕПОЗИТОРИЯ
+        rm -f buildozer.spec
+        
         # Генерируем свежий чистый конфигурационный файл
         buildozer init
+
 
     - name: Configure buildozer.spec and Permissions
       run: |
