@@ -1,0 +1,206 @@
+<FileItem>:
+    orientation: 'vertical'
+    size_hint_x: None
+    width: "110dp"
+    padding: 8
+    spacing: 5
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.17, 0.22, 1
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: 12
+
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: "45dp"
+        spacing: 5
+        BoxLayout:
+            size_hint_x: None
+            width: "45dp"
+            Image:
+                source: root.icon_source
+                allow_stretch: True
+                keep_ratio: True
+                opacity: 1 if root.icon_source else 0
+                size_hint: (1, 1) if root.icon_source else (None, None)
+                size: (0, 0) if not root.icon_source else self.parent.size
+            Label:
+                text: root.icon_text
+                font_size: "28sp"
+                opacity: 1 if root.icon_text else 0
+                size_hint: (1, 1) if root.icon_text else (None, None)
+                size: (0, 0) if not root.icon_text else self.parent.size
+        Button:
+            text: "×"
+            font_size: "16sp"
+            bold: True
+            size_hint: (None, None)
+            size: ("20dp", "20dp")
+            pos_hint: {"top": 1}
+            background_normal: ""
+            background_color: 0.8, 0.2, 0.2, 0.8
+            on_press: root.remove_self()
+
+    Label:
+        text: root.file_name
+        font_size: "11sp"
+        shorten: True
+        shorten_from: "center"
+        text_size: self.size
+        halign: "center"
+        valign: "top"
+
+<HistoryItem>:
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: "50dp"
+    padding: 10
+    spacing: 10
+    canvas.before:
+        Color:
+            rgba: 0.2, 0.22, 0.28, 1
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: 8
+
+    Label:
+        id: display_label
+        text: ""
+        font_size: "14sp"
+        text_size: self.size
+        halign: "left"
+        valign: "middle"
+        shorten: True
+
+    Button:
+        text: "Открыть/Копия"
+        size_hint_x: None
+        width: "110dp"
+        background_color: 0.2, 0.6, 0.4, 1
+        on_press: root.action_press()
+
+<MainScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '50dp'
+            Label:
+                text: "Wi-Fi Мобильный"
+                font_size: '24sp'
+                bold: True
+                halign: 'left'
+                text_size: self.size
+
+            Button:
+                text: "📥 ПРИНЯТЬ (" + str(len(app.received_items)) + ")"
+                size_hint_x: None
+                width: '140dp'
+                bold: True
+                background_color: 0.9, 0.4, 0.1, 1
+                on_press: root.manager.current = 'history'
+
+        TextInput:
+            id: input_field
+            hint_text: "Введите текст, ссылку или выберите файлы..."
+            font_size: '18sp'
+            multiline: True
+            on_text: app.check_for_links(self.text)
+
+        # ВОЗВРАТ ЗОНЫ ФАЙЛОВ НА ЭКРАН ТЕЛЕФОНА
+        ScrollView:
+            size_hint_y: None
+            height: "95dp"
+            do_scroll_y: False
+            do_scroll_x: True
+            canvas.before:
+                Color:
+                    rgba: 0.1, 0.1, 0.1, 0.05
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: 8
+            BoxLayout:
+                id: files_scroll_container
+                orientation: 'horizontal'
+                size_hint_x: None
+                width: self.minimum_width
+                padding: 8
+                spacing: 10
+
+        Button:
+            id: link_button
+            text: "🔗 Перейти по ссылке: " + app.detected_link
+            size_hint_y: None
+            height: '45dp'
+            background_color: 0.1, 0.7, 0.3, 1
+            opacity: 0
+            disabled: True
+            on_press: app.open_link()
+
+        Label:
+            id: status_label
+            text: "Подключите телефон к домашнему Wi-Fi"
+            font_size: '14sp'
+            size_hint_y: None
+            height: '30dp'
+            color: 0.7, 0.7, 0.7, 1
+
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '50dp'
+            spacing: 10
+            Button:
+                text: "📋 Вставить"
+                background_color: 0.2, 0.5, 0.7, 1
+                on_press: app.paste_from_system()
+            Button:
+                text: "📁 Файлы"
+                background_color: 0.6, 0.4, 0.8, 1
+                on_press: app.choose_file()
+            Button:
+                text: "🚀 ОТПРАВИТЬ НА ПК"
+                bold: True
+                background_color: 0.2, 0.7, 0.4, 1
+                on_press: app.send_data()
+
+<HistoryScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '50dp'
+            Button:
+                text: "⬅ Назад"
+                size_hint_x: None
+                width: '90dp'
+                background_color: 0.4, 0.4, 0.4, 1
+                on_press: root.manager.current = 'main'
+            Label:
+                text: "  Принятые файлы и тексты с ПК"
+                font_size: '20sp'
+                bold: True
+                halign: 'left'
+                text_size: self.size
+
+        ScrollView:
+            BoxLayout:
+                id: history_container
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: 8
+                padding: 5
