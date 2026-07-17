@@ -37,16 +37,24 @@ jobs:
         mv main_android.py main.py
         mv main_android.kv main.kv
         
+        # Полностью сносим старые спеки, чтобы не было ошибок дубликатов
         rm -f buildozer.spec
         buildozer init
 
     - name: Configure buildozer.spec and Permissions
       run: |
+        # Принимаем лицензии Android SDK
         sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
+        
+        # Обновляем версию Android API до современной 34
         sed -i 's/android.api = 31/android.api = 34/g' buildozer.spec
         sed -i 's/android.api = 33/android.api = 34/g' buildozer.spec
-        # Сетевые права и доступ к хранилищу файлов смартфона
+        
+        # Запрашиваем у Android системный доступ к Wi-Fi сети и памяти устройства
         sed -i 's/android.permissions =/android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE/g' buildozer.spec
+        
+        # ВШИВАЕМ PLYER ВНУТРЬ ПРИЛОЖЕНИЯ: это спасет от вылета "ModuleNotFoundError" на старте телефона
+        sed -i 's/requirements = python3, kivy/requirements = python3, kivy, plyer/g' buildozer.spec
 
     - name: Build APK with Buildozer
       run: |
